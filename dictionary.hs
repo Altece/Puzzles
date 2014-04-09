@@ -2,13 +2,14 @@ module Dictionary where
 
  import Trie
  import Data.Char
+ import Data.List
  import qualified Data.Map as Map
 
  type Dictionary = Trie String
 
  dictionary :: [String] -> Dictionary
  dictionary [] = empty
- dictionary (c:cs) = insert (map toUpper c) c $ dictionary cs
+ dictionary (w:ws) = Trie.insert (map toUpper w) w $ dictionary ws
 
  readDictionary :: FilePath -> IO Dictionary
  readDictionary filename = do file <- readFile filename
@@ -17,22 +18,29 @@ module Dictionary where
  find :: String -> Dictionary -> Maybe String
  find s d = Trie.lookup (map toUpper s) d
 
- findWhere :: String -> Dictionary -> [String]
- findWhere _      Empty = []
- findWhere []     (Node x m) = case x of { Nothing -> []; Just x -> [x] }
- findWhere (c:cs) (Node x m) = 
-   case c of
-     wildcard -> foldl (++) [] $ map (\c -> findWhere (c:cs) $ Node x m) letters
-     _ -> case x of { Nothing -> recurse ; Just x -> x:recurse }
-   where recurse = case Map.lookup c m of
-                     Nothing -> []
-                     Just Empty -> []
-                     Just d -> findWhere cs d
-         letters = ['A'..'Z']
+ search = Dictionary.find
 
  unscramble :: String -> Dictionary -> [String]
- unscramble s d = map (\(s, s') -> s') $ findAll (map toUpper s) d
+ unscramble s d = lexical $ minimal $ map (\(s, s') -> s') $ findAll (map toUpper s) d
 
  anagrams :: String -> Dictionary -> [String]
- anagrams s d = filter (\s -> length s == expected) $ unscramble s d
+ anagrams s d = lexical $ minimal $ filter (\s -> length s == expected) $ unscramble s d
    where expected = length s
+
+ possible :: [[Char]] -> Dictionary -> [String]
+ possible ws Empty = []
+ possible ws (Node x m) =
+   case ws of
+     [] -> case x of { Nothing -> [] ; Just s -> [s] }
+     ws -> concat $ map (\w -> figureout w (without w ws)) ws
+   where without w [] = []
+         without w (x:xs) = if w == x then xs else x:(without w xs)
+         figureout w ws = foldl (\r c -> case Map.lookup (toUpper c) m of
+                                           Nothing -> r
+                                           Just d -> r ++ (possible ws d)) [] w
+
+ lexical :: [String] -> [String]
+ lexical ws = sortBy (\x y -> (map toUpper x) `compare` (map toUpper y)) ws 
+
+ minimal :: [String] -> [String]
+ minimal ws = foldr (\x seen -> if x `elem` seen then seen else x:seen) [] ws

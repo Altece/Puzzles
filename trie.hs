@@ -16,7 +16,7 @@ module Trie where
      Just t -> Node x (Map.insert c (insert cs x' t) m)
 
 {-
- {- This remove would cause lookup to be inefficient -}
+ -- This remove would cause lookup to be inefficient
  remove :: Trie x -> String -> Trie x
  remove Empty _ = Empty
  remove (Node x m) [] = Node Nothing m
@@ -37,14 +37,14 @@ module Trie where
 
  findAll :: String -> Trie x -> [(String, x)]
  findAll _  Empty = []
- findAll cs (Node x m) = foldr checkAll [] combinations
+ findAll cs (Node x m) = onlyOne $ foldr checkAll [] combinations
    where remove c [] = []
          remove c (x:xs) = if c == x then xs else x:(remove c xs)
          combinations = foldr dealWithWildcard [] $ map (\c -> (c, remove c cs)) cs
            where dealWithWildcard (c, rest) l =
-                   case c of
-                     wildcard -> (map (\c -> (c, rest)) letters) ++ l
-                     _ -> (c, rest):l
+                   if c == wildcard
+                     then (map (\c -> (c, rest)) letters) ++ l
+                     else (c, rest):l
                  letters = ['a'..'z'] ++ ['A'..'Z']
          checkAll (c, rest) l = 
            case Map.lookup c m of
@@ -56,3 +56,6 @@ module Trie where
                    (l ++) $ map (\(cs, x) -> (c:cs, x)) $ findAll rest t
                  Node (Just x) m -> 
                    ((([c], x):l) ++) $ map (\(cs, x) -> (c:cs, x)) $ findAll rest t
+         onlyOne ls = foldr (\x seen -> case Prelude.lookup (fst x) seen of
+                                          Nothing -> x:seen
+                                          Just _ -> seen) [] ls
